@@ -1,0 +1,8 @@
+#build
+docker build -t hello-world-golang .
+
+#run
+docker container run -it hello-world-golang
+
+#see docker layers
+docker image inspect -f '{{ .RootFS.Layers }}' hello-world-golang
