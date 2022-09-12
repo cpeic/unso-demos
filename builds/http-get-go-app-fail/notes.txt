@@ -1,0 +1,8 @@
+#build
+docker build -t http-get-golang .
+
+#run
+docker container run -it http-get-golang
+
+#see docker layers
+docker image inspect -f '{{ .RootFS.Layers }}' http-get-golang
