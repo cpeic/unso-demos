@@ -1,0 +1,31 @@
+# El objetivo de esta demo es crear un proceso en un namespace de tipo UTS diferente. Para esto se utiliza
+# el comando unshare con el argumento --uts. Los namespaces son una de las capacidades del kernel de Linux que nos 
+# permite aislar lógicamente un proceso y generar un container.
+
+# Ejecutar un proceso (bash) en un namespace de tipo UTS
+sudo unshare --uts bash
+
+# Ejecutar sleep 10000 para verlo en el output de ps auf como un proceso hijo de bash
+sleep 10000
+
+# En otra terminal, ejecutar ps auf y ver que sleep 10000 depende de un proceso de bash visible
+ps auf
+
+# En otra terminal, listar todos los namespaces de ese proceso, todos heredan de systemd con PID1 excepto el namespace de UTS.
+# Observación: pgrep sleep nos devuelve el process ID del proceso sleep. Al ejecutarlo entre $() se utiliza command substitution,
+# es decir se ejecuta y se reemplaza el $() por la salida de dicho comando. Más info: https://www.gnu.org/software/bash/manual/html_node/Command-Substitution.html
+# Por ejemplo, si "sleep 10000" tiene el PID 12345, el resultado de "pgrep sleep" es 12345 y ejecutar lsns -p $(pgrep sleep) 
+# es equivalente a lsns -p 12345
+lsns -p $(pgrep sleep)
+
+# En la terminal donde se creó el proceso en un nuevo namespace, podemos cambiar hostname ejecutando "hostname <nombre>"
+hostname PRUEBA
+
+# En otra terminal, podemos ver que el hostname del sistema operativo no se ve modificado, ejecutando "hostname"
+hostname
+
+
+# Para más información sobre cualquier comando de los usados, se puede recurrir a las manpages de dicho comando.
+# Man pages: https://en.wikipedia.org/wiki/Man_page
+# Ejemplo: ejecutar "man lsns" para ver la información del comando lsns.
+

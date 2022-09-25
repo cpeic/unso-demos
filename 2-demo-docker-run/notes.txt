@@ -1,0 +1,55 @@
+# El objetivo de esta demo es crear observar como, al ejecutar un container mediante el uso de Docker, se utilizan
+# las distintas capabilities del kernel de Linux para lograr el aislamiento lógico del proceso que corre en el container.
+# Como pre-requisito, es necesario tener instalado Docker, y ejecutar los comandos con el usuario root, haciendo sudo su
+# previamente
+
+# Creamos un container a partir de una imagen de ubuntu, con limite de memoria seteado a 100MB.
+# Al no definir un registry local, esta imagen se va a descargar del registry público de Docker.
+# Al no definir un tag, se asume "latest", y es equivalente a ejecutar: docker run -it --memory=100MB ubuntu:latest bash
+# Se puede ver información de la imagen así como los tags disponibles en el registry: https://hub.docker.com/_/ubuntu
+docker run -it --memory=100MB ubuntu bash
+
+# Dentro del container, ejecutamos sleep 10000, esto nos permite buscar ese proceso desde el host y ver que el mismo
+# es visible
+sleep 1000
+
+
+# En otra terminal, ejecutamos ps y vemos que en el host se ve el proceso sleep 10000 del container. El pipe ("|") permite
+# conectar la salida o stdout de un comando ("ps aux") con la entrada o stdin de otro comando ("grep"). El comando grep nos permite filtrar
+# lo recibido por stdin, buscando en este caso la palabra grep.
+ps aux | grep sleep
+
+# Si se ejecuta ps con el modificador "f", vemos los procesos en formato de árbol, y se ve que el proceso 
+# sleep depende de un proceso bash, que es el comnando con el que iniciamos el container. Se observa que el process ID de este
+# proceso de bash tiene un valor elevado, esto es porque cada vez que se genera un nuevo proceso el kernel le asigna 
+# un identificador numérico que se va incrementando hasta llegar al valor máximo, luego de eso el valor se reinicia.
+# Más info: https://unix.stackexchange.com/questions/16883/what-is-the-maximum-value-of-the-process-id
+# Para esto, es necesario detener primero la ejecución del proceso sleep utilizando Control-C
+ps auf
+
+# Si se ejecuta ps auf desde adentro del container, se ve que el process ID de bash es 1. Este proceso bash es el mismo que desde afuera
+# del container se ve con un PID elevado. 
+
+# Ahora vamos a ver el límite de memoria de 100MB que asignamos previamente a ese proceso al momento de iniciar el container.
+# Esto se ve en el pseudo file system /sys/fs/cgroup/memory/docker, en esta carpeta se genera una carpeta por cada container
+# que se crea, con el ID del container. Con el comando cat imprimimos el contenido de un archivo, en este caso del archivo 
+# que tiene configurado el límite de memoria. Acá usamos nuevamente command substitution para obtener el ID del container e inyectarlo
+# en la ruta de manera dinámica, dado que "docker ps -q --no-trunc" devuelve el ID del container que estamos ejecutando.
+cat /sys/fs/cgroup/memory/docker/$(docker ps -q --no-trunc)/memory.limit_in_bytes
+
+# Ahora vamos a ver los namespaces de este proceso. Para eso, volvemos a ejecutar "sleep 10000" desde
+# el container, y luego en otra terminal ejecutamos lsns para ver los namespaces de este proceso. Se ven namespaces 
+# de tipo mount, UTS, IPC, PID y networking, que son los utilizados por Docker por default.
+lsns -p $(pgrep sleep)
+
+
+# Ahora vamos a inspeccionar toda la metadata del container creado ejecutando el siguiente comando.
+docker inspect $(docker ps -q)
+
+# Dentro de toda la información que devuelve, se observa el siguiente valor: 
+# "MergedDir": "/var/lib/docker/overlay2/<id>/merged"
+# Este es el directorio del sistema operativo host donde Docker cambia la raíz del proceso (es decir, hace chroot) 
+# Si hacemos cd a dicho directorio desde el host y listamos los archivos (ejecutnado ls -al), vamos a observar la misma estructura
+# de archivos que si los listamos desde el container (con ls -al también). No obstante, desde el host podemos realizar un "cd .." para
+# navegar a la carpeta padre, mientras que desde el container ejecutar esto no tiene ningún efecto y se sigue estando en la raíz.
+# El motivo es que el proceso bash del container está chrooteado, y para esto proceso no existe nada atrás del root "/"
